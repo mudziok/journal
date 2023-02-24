@@ -1,0 +1,111 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgres"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  username   String     @id @db.VarChar(64)
+  email      String     @unique @db.VarChar(128)
+  password   String     @db.VarChar(128)
+  salt       String     @db.VarChar(64)
+  session    Session[]
+  posts      Entry[]
+  reaction   Reaction[]
+  comment    Comment[]
+  follows    Follow[]   @relation("follower")
+  followedBy Follow[]   @relation("followee")
+  awards     Badge[]
+
+  @@map("users")
+}
+
+model Session {
+  id       String   @id @unique @default(uuid())
+  expires  DateTime
+  user     User     @relation(fields: [username], references: [username], onDelete: Cascade)
+  username String   @db.VarChar(64)
+
+  @@map("sessions")
+}
+
+model Entry {
+  author         User       @relation(fields: [authorUsername], references: [username], onDelete: Cascade)
+  authorUsername String     @map("author_username")
+  day            DateTime   @default(now()) @db.Date
+  createdAt      DateTime   @default(now()) @map("created_at")
+  content        String
+  reaction       Reaction[]
+  comment        Comment[]
+  image          Image?     @relation(fields: [imageSrc], references: [src], onDelete: SetNull)
+  imageSrc       String?    @map("image_src") @db.VarChar(128)
+
+  @@id([authorUsername, day])
+  @@map("entries")
+}
+
+model Reaction {
+  emote String
+
+  user     User   @relation(fields: [username], references: [username], onDelete: Cascade)
+  username String @db.VarChar(64)
+
+  entry               Entry    @relation(fields: [entryAuthorUsername, entryDay], references: [authorUsername, day], onDelete: Cascade)
+  entryAuthorUsername String   @map("entry_author_username") @db.VarChar(64)
+  entryDay            DateTime @map("entry_day") @db.Date
+
+  @@id([username, emote, entryAuthorUsername, entryDay])
+  @@map("reactions")
+}
+
+model Comment {
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  author         User   @relation(fields: [authorUsername], references: [username], onDelete: Cascade)
+  authorUsername String @map("author_username") @db.VarChar(64)
+
+  entry               Entry    @relation(fields: [entryAuthorUsername, entryDay], references: [authorUsername, day], onDelete: Cascade)
+  entryAuthorUsername String   @map("entry_author_username") @db.VarChar(64)
+  entryDay            DateTime @map("entry_day") @db.Date
+
+  @@id([authorUsername, entryAuthorUsername, entryDay])
+  @@map("comments")
+}
+
+model Image {
+  src   String  @id @db.VarChar(128)
+  alt   String
+  entry Entry[]
+  badge Badge[]
+
+  @@map("images")
+}
+
+model Follow {
+  follower         User   @relation("follower", fields: [followerUsername], references: [username], onDelete: Cascade)
+  followerUsername String @map("follower_username") @db.VarChar(64)
+  followee         User   @relation("followee", fields: [followeeUsername], references: [username], onDelete: Cascade)
+  followeeUsername String @map("followee_username") @db.VarChar(64)
+
+  @@id([followerUsername, followeeUsername])
+  @@map("follows")
+}
+
+model Badge {
+  name              String   @db.VarChar(64)
+  awardedAt         DateTime @map("awarded_at") @default(now())
+  recipient         User     @relation(fields: [recipientUsername], references: [username], onDelete: Cascade)
+  recipientUsername String   @map("recipient_username") @db.VarChar(64)
+  image             Image?   @relation(fields: [imageSrc], references: [src], onDelete: SetNull)
+  imageSrc          String?  @map("image_src") @db.VarChar(128)
+
+  @@id([name, recipientUsername, awardedAt])
+  @@map("badges")
+}
